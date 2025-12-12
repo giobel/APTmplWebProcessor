@@ -160,7 +160,8 @@ def process_ajax():
         as_attachment=True,
         download_name="Reencoded_AppearSet.aptmpl"
     )
-
+"""
 if __name__ == "__main__":
     print("Running on http://127.0.0.1:5000")
     app.run(debug=True)
+"""
