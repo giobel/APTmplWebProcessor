@@ -4,6 +4,7 @@ import zlib, blackboxprotobuf, random, copy, io, base64
 
 app = Flask(__name__)
 
+
 def color_to_int(r, g, b, a=255, order='RGBA'):
     if order.upper() == 'RGBA':
         return (r << 24) | (g << 16) | (b << 8) | a
@@ -59,17 +60,30 @@ def upload_ajax():
     uploaded = request.files["aptmpl"]
     raw = uploaded.read()
 
-    decdata, typeof = blackboxprotobuf.decode_message(raw)
-    blob = decdata['4']['6']['3']
-    decItem, itemType = blackboxprotobuf.decode_message(zlib.decompress(blob))
+    print(raw)
 
-    first = decItem['1'][0]
+    #ALL DECODED DATA
+    decdata, typeof = blackboxprotobuf.decode_message(raw)
+    
+    # EXTRACT TEMPLATE PROPERTIES
+    blob1 = decdata['4']['6']['3']
+
+    #DECOMPRESS TEMPLATE PROPERTIES
+    mes1 = zlib.decompress(blob1)
+
+    # DECODE TEMPLATE PROPERTIES
+    decItem, itemTypeOf = blackboxprotobuf.decode_message(mes1)
+
+    first = decItem['1']
+    #print(first)
 
     templateName = decdata['4']['4'].decode()  # existing template name in the file
     tabName  = first['3']['2']['1']['2']['2']['2']['2']['2']['2'].decode()
     propName = first['3']['2']['1']['2']['2']['2']['2']['3']['2'].decode()
 
     encoded = base64.b64encode(raw).decode()
+    #encoded = raw
+
     return { 
     "tabName": tabName,
     "propName": propName,
@@ -84,7 +98,7 @@ def process_ajax():
     tabName   = request.form["tabName"].strip()
     propName  = request.form["propName"].strip()
     templateName = request.form["templateName"].strip()
-    values    = [v.strip() for v in request.form["values"].split(",") if v.strip()]
+    values = [v.strip() for v in request.form["values"].split(",") if v.strip()]
 
     decdata, typeof = blackboxprotobuf.decode_message(filedata)
     blob = decdata['4']['6']['3']
@@ -109,7 +123,7 @@ def process_ajax():
                                     '1': 0,
                                     '2': { '2': b"" },
                                     '3': { '2': b"" },
-                                    '4': { '1': 5, '2': b'S001' },
+                                    '4': { '1': 1, '3': 9 },
                                     '5': 6
                                 }
                             }
@@ -128,23 +142,21 @@ def process_ajax():
     color_mode = request.form.get("colorMode", "random").lower()
     n_values = len(values)
     distinct_colors = distinct_colors_int(n_values) if color_mode == "distinct" else []
+   
 
-
-    
-
-    for i, val in enumerate(values, start=1):
+    for i in range(0, n_values):
         entry = copy.deepcopy(template)
         #entry['2'] = random_color_int()
             # assign color based on user selection
         if color_mode == "random":
             entry['2'] = random_color_int()
         elif color_mode == "distinct":
-            entry['2'] = distinct_colors[i-1]
+            entry['2'] = distinct_colors[i]
         elif color_mode == "green2red":
-            entry['2'] = green_to_red(i, n_values)
+            entry['2'] = green_to_red(i+1, n_values)
         else:
             entry['2'] = random_color_int()  # fallback
-        entry['3']['2']['1']['2']['2']['2']['2']['4']['2'] = val.encode()
+        entry['3']['2']['1']['2']['2']['2']['2']['4']['3'] = int(values[i])
         decItem['1'].append(entry)
 
     compressed = zlib.compress(blackboxprotobuf.encode_message(decItem, itemType))
