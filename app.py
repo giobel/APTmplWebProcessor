@@ -1,4 +1,5 @@
 import colorsys
+from datetime import datetime
 from flask import Flask, request, render_template, send_file
 import zlib, blackboxprotobuf, random, copy, io, base64
 
@@ -57,10 +58,29 @@ def index():
 # AJAX endpoint to extract tabName & propName
 @app.route("/upload_ajax", methods=["POST"])
 def upload_ajax():
+    nanoseconds = 1_000_000_000
+    
+    # time at date 01/01/2024
+    StartDate = datetime.strptime("20240101", "%Y%m%d")
+
+    #time at date 01/01/2024 This come from Paul's XML file
+    StartTime = 638396604*nanoseconds
+
+    # we set our project start day at 30/09/2024 
+    projectStartDate = datetime.strptime("20251212", "%Y%m%d")
+
+    # we calculate the delta between start date and our project start date
+    delta = projectStartDate-StartDate
+
+    # convert delta into nanoseconds and add to Start Time
+    startDateTime = StartTime + delta.days *24*60*60/100*nanoseconds
+
+    #print(f"Current Time {int(startDateTime):d}")
+
     uploaded = request.files["aptmpl"]
     raw = uploaded.read()
 
-    print(raw)
+    #print(raw)
 
     #ALL DECODED DATA
     decdata, typeof = blackboxprotobuf.decode_message(raw)
@@ -75,7 +95,7 @@ def upload_ajax():
     decItem, itemTypeOf = blackboxprotobuf.decode_message(mes1)
 
     first = decItem['1']
-    #print(first)
+    ##print(first)
 
     templateName = decdata['4']['4'].decode()  # existing template name in the file
     tabName  = first['3']['2']['1']['2']['2']['2']['2']['2']['2'].decode()
@@ -100,41 +120,38 @@ def process_ajax():
     templateName = request.form["templateName"].strip()
     values = [v.strip() for v in request.form["values"].split(",") if v.strip()]
 
+    #ALL DECODED DATA
     decdata, typeof = blackboxprotobuf.decode_message(filedata)
+    
     blob = decdata['4']['6']['3']
     mes = zlib.decompress(blob)
-    decItem, itemType = blackboxprotobuf.decode_message(mes)
+
+    decItem, itemTypeOf = blackboxprotobuf.decode_message(mes)
+
+
+
+    template = decItem['1']
+
+    itemType = template['3']['2']['1']['2']['2']['2']['2']['4']
+    #print ('itemType ', itemType)
+
+    propertyTypeValue = itemType[list(itemType.keys())[0]] #5 for string 1 for integer
+
+    #print ('propertyTypeValue ', propertyTypeValue)
+
+    propertyValueKey = list(itemType.keys())[1]
+
+    #print ('propertyValueKey ', propertyValueKey)
+
+    propertyType = 'string'
+
+    if propertyTypeValue == 1:
+        propertyType = 'integer'
+    elif propertyTypeValue == 6:
+        propertyType = 'integer'
 
     decItem['1'] = []
-
-    template = {
-        '1': 4,
-        '2': 1325369087,
-        '3': {
-            '1': 0,
-            '2': {
-                '1': {
-                    '2': {
-                        '1': 0,
-                        '2': {
-                            '1': 0,
-                            '2': {
-                                '2': {
-                                    '1': 0,
-                                    '2': { '2': b"" },
-                                    '3': { '2': b"" },
-                                    '4': { '1': 1, '3': 9 },
-                                    '5': 6
-                                }
-                            }
-                        },
-                        '3': 1
-                    }
-                }
-            }
-        }
-    }
-
+ 
     decdata['4']['4'] = templateName.encode('utf-8')
     template['3']['2']['1']['2']['2']['2']['2']['2']['2'] = tabName.encode()
     template['3']['2']['1']['2']['2']['2']['2']['3']['2'] = propName.encode()
@@ -156,10 +173,14 @@ def process_ajax():
             entry['2'] = green_to_red(i+1, n_values)
         else:
             entry['2'] = random_color_int()  # fallback
-        entry['3']['2']['1']['2']['2']['2']['2']['4']['3'] = int(values[i])
+        match propertyType:
+            case 'string':
+                entry['3']['2']['1']['2']['2']['2']['2']['4'][propertyValueKey] = f"{values[i]}".encode('utf-8')
+            case 'integer':
+                entry['3']['2']['1']['2']['2']['2']['2']['4'][propertyValueKey] = int(values[i])  # NUMBER: 3
         decItem['1'].append(entry)
 
-    compressed = zlib.compress(blackboxprotobuf.encode_message(decItem, itemType))
+    compressed = zlib.compress(blackboxprotobuf.encode_message(decItem, itemTypeOf))
     decdata['4']['6']['3'] = compressed
     final = blackboxprotobuf.encode_message(decdata, typeof)
 
@@ -174,6 +195,6 @@ def process_ajax():
     )
 """
 if __name__ == "__main__":
-    print("Running on http://127.0.0.1:5000")
+    #print("Running on http://127.0.0.1:5000")
     app.run(debug=True)
 """
